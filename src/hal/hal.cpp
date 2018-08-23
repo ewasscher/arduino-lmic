@@ -160,6 +160,13 @@ static s4_t delta_time(u4_t time) {
     return (s4_t)(time - hal_ticks());
 }
 
+#ifdef ARDUINO_ARCH_ESP32
+// Go to ESP32 light sleep until the desired time
+void hal_waitUntil (u4_t time) {
+    esp_sleep_enable_timer_wakeup(osticks2us(delta_time(time)));
+    esp_light_sleep_start();
+}
+#else
 void hal_waitUntil (u4_t time) {
     s4_t delta = delta_time(time);
     // From delayMicroseconds docs: Currently, the largest value that
@@ -171,12 +178,22 @@ void hal_waitUntil (u4_t time) {
     if (delta > 0)
         delayMicroseconds(delta * US_PER_OSTICK);
 }
+#endif
 
+#ifdef ARDUINO_ARCH_ESP32
+// Schedule wakeup by the ESP32 sleep timer
+u1_t hal_checkTimer (u4_t time) {
+    s4_t delta = delta_time(time);
+    esp_sleep_enable_timer_wakeup(osticks2us(delta));
+    return delta <= 0;
+}
+#else
 // check and rewind for target time
 u1_t hal_checkTimer (u4_t time) {
     // No need to schedule wakeup, since we're not sleeping
     return delta_time(time) <= 0;
 }
+#endif
 
 static uint8_t irqlevel = 0;
 
@@ -201,9 +218,17 @@ void hal_enableIRQs () {
     }
 }
 
+#ifdef ARDUINO_ARCH_ESP32
+void hal_sleep () {
+	// Go to ESP32 light sleep.
+	// The wakeup source (ESP32 sleep timer) must be configured elsewhere.
+    esp_light_sleep_start();
+}
+#else
 void hal_sleep () {
     // Not implemented
 }
+#endif
 
 // -----------------------------------------------------------------------------
 
